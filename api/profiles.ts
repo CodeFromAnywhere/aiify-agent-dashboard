@@ -28,6 +28,7 @@ export const profiles = [
     personaDescription:
       "Mark is een API-architect met jarenlange ervaring in het ontwerpen van schaalbare en robuuste API's. Hij legt de nadruk op het maken van duidelijke en consistente API-specificaties die gemakkelijk te begrijpen en te implementeren zijn voor ontwikkelaars.",
   },
+
   {
     id: "backend",
     model: "claude-3-5-sonnet-20240620",
