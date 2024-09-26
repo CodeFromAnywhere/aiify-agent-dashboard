@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ai·ify chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.10/tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: #1f2937;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-M05S6XVCGF"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-M05S6XVCGF');
+    </script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <div class="container mx-auto p-4 flex-grow flex flex-col">
+        <header>
+            <div class="flex flex-row flex-wrap justify-between">
+                <a href="/" class="logo">
+                    <h1>aiᐧ<span class="text-blue-300">ify</span> chat</h1>
+                </a>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-4 flex-grow flex flex-col">
+            <div id="chat-messages" class="mb-4 flex-grow overflow-y-auto">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="mt-4">
+                <textarea id="userPrompt" class="w-full p-2 border rounded" rows="4"
+                    placeholder="Vul hier je bericht in.."></textarea>
+            </div>
+            <div class="mt-4 flex flex-row gap-4 items-center">
+                <button id="submitBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    <i id="submitIcon" class="fas fa-paper-plane mr-2"></i>Versturen
+                </button>
+            </div>
+        </div>
+
+        <div class="relative mt-4">
+            <textarea id="response" class="bg-white p-4 rounded shadow-md w-full h-64 resize-none" readonly></textarea>
+            <div class="absolute top-2 right-2 flex">
+                <button id="copyCodeBtn" class="hidden bg-green-500 text-white px-2 py-1 rounded text-sm mr-2">
+                    <i class="fas fa-copy mr-1"></i>Copy Code
+                </button>
+                <button id="openHostedBtn" class="hidden bg-blue-500 text-white px-2 py-1 rounded text-sm">
+                    <i class="fas fa-external-link-alt mr-1"></i>Open Hosted
+                </button>
+            </div>
+        </div>
+
+        <div id="personaContainer" class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Persona cards will be dynamically added here -->
+        </div>
+    </div>
+
+    <script>
+        let userHasScrolled = false;
+        let responseTextarea;
+        let settings = {};
+        let profiles = {};
+        let isLoading = false;
+        let isHosted = false;
+        let hostedContentUrl = null;
+
+        function setupScrollBehavior() {
+            responseTextarea = document.getElementById('response');
+            responseTextarea.addEventListener('scroll', handleScroll);
+        }
+
+        function handleScroll() {
+            const { scrollTop, scrollHeight, clientHeight } = responseTextarea;
+            if (scrollTop < scrollHeight - clientHeight - 10) {
+                userHasScrolled = true;
+            } else {
+                userHasScrolled = false;
+            }
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Fetch settings.json and initialize the application
+        fetch('/api/profiles')
+            .then(response => response.json())
+            .then(data => {
+                profiles = data;
+                localStorage.setItem('chatProfiles', JSON.stringify(profiles));
+                renderPersonaCards();
+                initializeSettings();
+            })
+            .catch(error => console.error('Error loading settings:', error));
+
+        function initializeSettings() {
+            settings = JSON.parse(localStorage.getItem('chatSettings')) || {};
+
+            Array.from(urlParams.entries()).map(([key, value]) => settings[key] = value);
+            localStorage.setItem('chatSettings', JSON.stringify(settings));
+
+            checkForRemixAndUserPrompt();
+        }
+
+        function renderPersonaCards() {
+            const personaContainer = document.getElementById('personaContainer');
+            personaContainer.innerHTML = '';
+            const selectedProfile = localStorage.getItem('selectedProfile');
+
+
+            for (const profile of profiles) {
+                const card = document.createElement('div');
+                card.className = `${profile.id === selectedProfile ? "border-blue-500 border-2 " : ""}bg-white rounded-lg shadow-md p-4 flex flex-col items-center cursor-pointer hover:bg-gray-50`;
+                card.innerHTML = `
+                    <img src="${profile.imageUrl}" alt="${profile.personaName}" class="w-32 h-32 rounded-full mb-4">
+                    <h3 class="text-lg font-semibold mb-2">${profile.personaName}</h3>
+                    <p class="text-sm text-gray-600 text-center">${profile.personaDescription}</p>
+                `;
+                card.addEventListener('click', () => selectProfile(profile.id));
+                personaContainer.appendChild(card);
+            }
+        }
+
+        function selectProfile(profileName) {
+            const item = profiles.find(x => x.id === profileName)
+            if (item) {
+                localStorage.setItem('chatSettings', JSON.stringify(item));
+                localStorage.setItem('selectedProfile', profileName);
+                location.reload();
+            }
+        }
+
+        function checkForRemixAndUserPrompt() {
+            const remixUrl = urlParams.get('remix');
+            if (remixUrl) {
+                fetch(remixUrl)
+                    .then(response => response.text())
+                    .then(content => {
+                        document.getElementById('userPrompt').value = content;
+                    })
+                    .catch(error => console.error('Error fetching remix content:', error));
+            } else {
+                const userPrompt = window.sessionStorage.getItem("userPrompt");
+                if (userPrompt) {
+                    document.getElementById('userPrompt').value = userPrompt;
+                }
+            }
+
+            const q = urlParams.get('q');
+            if (q) {
+                const value = decodeURIComponent(q).replaceAll("+", " ");
+                document.getElementById('userPrompt').value = value;
+                streamResponse(value);
+            }
+        }
+
+        async function streamResponse(userPrompt) {
+            userHasScrolled = false;
+            isLoading = true;
+            isHosted = false;
+            document.getElementById('submitIcon').className = "fas fa-circle-notch fa-spin mr-2";
+            const selectedProfile = localStorage.getItem('selectedProfile');
+
+            const response = document.getElementById('response');
+            const copyCodeBtn = document.getElementById('copyCodeBtn');
+            const openHostedBtn = document.getElementById('openHostedBtn');
+            response.value = '';
+            copyCodeBtn.classList.add('hidden');
+            openHostedBtn.classList.add('hidden');
+            hostedContentUrl = null;
+
+            try {
+
+                const finalOpenapiUrl = settings.openapiUrl || '';
+                const openapiPrefix = finalOpenapiUrl ? `/${encodeURIComponent(finalOpenapiUrl)}` : "";
+
+                const res = await fetch(`/api/simple?profile=${selectedProfile}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message: userPrompt })
+                });
+
+                if (res.status === 429) {
+                    alert("You have made too many requests. Please add an API key in settings");
+                    return;
+                }
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+
+                    response.value += chunk;
+
+                    if (!userHasScrolled) {
+                        response.scrollTop = response.scrollHeight;
+                    }
+                    checkForCodeBlocks();
+
+                }
+
+
+                document.getElementById('submitIcon').className = "fas fa-paper-plane mr-2";
+                isLoading = false;
+
+            } catch (error) {
+                document.getElementById('submitIcon').className = "fas fa-paper-plane mr-2";
+                isLoading = false;
+                console.error('Error:', error);
+                response.value = `Error: ${error.message}`;
+            }
+        }
+
+        function checkForCodeBlocks() {
+            const response = document.getElementById('response');
+            const copyCodeBtn = document.getElementById('copyCodeBtn');
+
+            if (extractAllCodeBlocks(response.value)[0].code) {
+                copyCodeBtn.classList.remove('hidden');
+
+                if (!isHosted) {
+                    isHosted = true;
+                    hostCode();
+                }
+            } else {
+                copyCodeBtn.classList.add('hidden');
+            }
+        }
+
+        function extractAllCodeBlocks(text) {
+            const codeBlockRegex = /^```(\w+)?\s*\n([\s\S]*?)^```/gm;
+            const codeBlocks = [];
+            let match;
+
+            while ((match = codeBlockRegex.exec(text)) !== null) {
+                codeBlocks.push({
+                    language: match[1] || null,
+                    code: match[2].trim()
+                });
+            }
+            return codeBlocks.length > 0 ? codeBlocks : [{ language: null, code: null }];
+        }
+
+        function copyCodeToClipboard() {
+            const response = document.getElementById('response');
+            const [{ code }] = extractAllCodeBlocks(response.value);
+
+            if (code) {
+                navigator.clipboard.writeText(code).then(() => {
+                    alert('Code copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy code: ', err);
+                });
+            }
+        }
+
+        async function hostCode() {
+            const response = document.getElementById('response');
+            const [{ code, language }] = extractAllCodeBlocks(response.value);
+            const userPrompt = document.getElementById('userPrompt').value;
+
+            if (code) {
+                try {
+                    const res = await fetch('https://content.actionschema.com/set', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', },
+                        body: JSON.stringify({
+                            code: code,
+                            prompt: userPrompt,
+                            extension: language || "html"
+                        })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        hostedContentUrl = data.contentUrl;
+                        document.getElementById('openHostedBtn').classList.remove('hidden');
+                    } else {
+                        console.error('Failed to host the code');
+                    }
+                } catch (error) {
+                    console.error('Error hosting code:', error);
+                }
+            }
+        }
+
+        document.getElementById('submitBtn').addEventListener('click', () => {
+            if (isLoading) {
+                window.location.reload();
+            } else {
+                const userPrompt = document.getElementById('userPrompt').value;
+                streamResponse(userPrompt);
+            }
+        });
+
+        document.getElementById('copyCodeBtn').addEventListener('click', copyCodeToClipboard);
+
+        document.getElementById('openHostedBtn').addEventListener('click', () => {
+            if (hostedContentUrl) {
+                window.open(hostedContentUrl, '_blank');
+            }
+        });
+
+        document.getElementById("userPrompt").oninput = (evt) => {
+            window.sessionStorage.setItem("userPrompt", evt.target.value);
+        };
+
+
+
+        document.addEventListener('DOMContentLoaded', setupScrollBehavior);
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,10 @@
+{
+  "include": ["api"],
+  "compilerOptions": {
+    "lib": ["es2022", "DOM"],
+    "strict": true,
+    "outDir": "build",
+    "declaration": true,
+    "skipLibCheck": true
+  }
+}
